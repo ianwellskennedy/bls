@@ -24,6 +24,12 @@ conflicts_prefer(dplyr::filter, dplyr::lag, lubridate::year, base::`||`, base::i
 county_shp_file_path <- "C:/Users/ianwe/Downloads/shapefiles/2024/Counties/cb_2024_us_county_5m.shp"
 metro_shp_file_path <- "C:/Users/ianwe/Downloads/shapefiles/2024/CBSAs/cb_2024_us_cbsa_5m.shp"
 
+output_file_path_for_tabular_county_data <- "LAUS/outputs/county_unemployment_rates.xlsx"
+output_file_path_for_tabular_metro_data <- "LAUS/outputs/metro_unemployment_rates.xlsx"
+
+output_file_path_for_spatial_county_data <- "C:/Users/ianwe/Downloads/ArcGIS projects for github/bls/LAUS/shapefiles/county_unemployment_rates.shp"
+output_file_path_for_spatial_metro_data <- "C:/Users/ianwe/Downloads/ArcGIS projects for github/bls/LAUS/shapefiles/metro_unemployment_rates.shp"
+
 # Reading in shp files ----
 
 county_shp <- st_read(county_shp_file_path)
@@ -95,3 +101,17 @@ for (county in counties) {
   
   metro_data_final <- bind_rows(metro_data_final, data_cleaned)
 }
+
+# Join shp files ----
+
+# Output tabular data ----
+
+write.xlsx(county_data_final, output_file_path_for_tabular_metro_data)
+write.xlsx(metro_data_final, output_file_path_for_tabular_metro_data)
+
+# Output spatial data ----
+
+arc.check_product()
+
+arc.write(county_data_final, output_file_path_for_spatial_county_data, overwrite = T, validate = T)
+arc.write(metro_data_final, output_file_path_for_spatial_metro_data, overwrite = T, validate = T)
