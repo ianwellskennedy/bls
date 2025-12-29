@@ -72,7 +72,8 @@ county_data <- county_data %>%
 # Join shp files ----
 
 county_data <- county_data %>%
-  left_join(county_shp, by = "county_fips_code")
+  left_join(county_shp, by = "county_fips_code") %>%
+  st_as_sf()
 
 county_data <- county_data %>%
   select(county_name.y, county_name_long, county_fips_code, state, state_fips_code, month, everything()) %>%
