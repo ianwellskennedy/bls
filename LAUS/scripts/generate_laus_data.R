@@ -24,6 +24,7 @@ conflicts_prefer(dplyr::filter, dplyr::lag, lubridate::year, base::`||`, base::i
 county_shp_file_path <- "C:/Users/ianwe/Downloads/shapefiles/2024/Counties/cb_2024_us_county_5m.shp"
 metro_shp_file_path <- "C:/Users/ianwe/Downloads/shapefiles/2024/CBSAs/cb_2024_us_cbsa_5m.shp"
 
+input_file_path_for_county_data <- "LAUS/inputs/laucntycur14/laucntycur14.xlsx"
 output_file_path_for_tabular_county_data <- "LAUS/outputs/county_unemployment_rates.xlsx"
 output_file_path_for_tabular_metro_data <- "LAUS/outputs/metro_unemployment_rates.xlsx"
 
@@ -51,67 +52,45 @@ metros <- unique(metro_shp$metro_fips_code)
 
 # Read in data ----
 
-metro_data_final <- data.frame()
+county_data <- read.xlsx(input_file_path_for_county_data)
 
-for (county in counties) {
-  
-  Sys.sleep(0.5)  # 👈 rate limit protection (important)
-  
-  series_id <- paste0("LAUCN", county, "0000000003")
-  
-  raw_response <- tryCatch(
-    blsAPI(list(
-      seriesid  = series_id,
-      startyear = "2025",
-      endyear   = "2025"
-    )),
-    error = function(e) return(NULL)
-  )
-  
-  # Skip if request failed
-  if (is.null(raw_response)) {
-    message("Skipping ", county, ": API call failed")
-    next
-  }
-  
-  # Skip if response is NOT JSON (rate limit message)
-  if (!startsWith(trimws(raw_response), "{")) {
-    message("Skipping ", county, ": rate limit hit")
-    next
-  }
-  
-  json_data <- fromJSON(raw_response)
-  
-  # Skip if no data
-  if (is.null(json_data$Results$series[[1]]$data)) {
-    message("Skipping ", county, ": no data returned")
-    next
-  }
-  
-  data_cleaned <- json_data$Results$series[[1]]$data %>%
-    as_tibble() %>%
-    rename(month = period) %>%
-    mutate(
-      month = as.Date(paste0(year, "-", str_remove(month, "^M"), "-01")),
-      value = as.numeric(value),
-      county_fips_code = county
-    ) %>%
-    select(month, county_fips_code, value) %>%
-    arrange(month)
-  
-  metro_data_final <- bind_rows(metro_data_final, data_cleaned)
-}
+names(county_data) <- county_data[1,]
+county_data <- county_data[-1,]
+
+county_data <- janitor::clean_names(county_data) %>%
+  rename(county_name = county_name_state_abbreviation, unemployment_rate = unemploy_ment_rate_percent,
+         month = period) 
+
+county_data <- county_data %>%
+  mutate(county_fips_code = paste0(state_fips_code, county_fips_code),
+         month = as.Date(paste0("01-", month), format = "%d-%b-%y"),
+         unemployment_rate = as.numeric(unemployment_rate),
+         employed = as.numeric(employed),
+         unemployed = as.numeric(unemployed),
+         labor_force = as.numeric(labor_force))
 
 # Join shp files ----
 
+county_data <- county_data %>%
+  left_join(county_shp, by = "county_fips_code")
+
+county_data <- county_data %>%
+  select(county_name.y, county_name_long, county_fips_code, state, state_fips_code, month, everything()) %>%
+  select(-c(county_name.x, laus_code)) %>%
+  rename(county_name = county_name.y)
+
+county_data_tabular <- county_data %>%
+  select(-geometry)
+
 # Output tabular data ----
 
-write.xlsx(county_data_final, output_file_path_for_tabular_metro_data)
-write.xlsx(metro_data_final, output_file_path_for_tabular_metro_data)
+write.xlsx(county_data_tabular, output_file_path_for_tabular_metro_data)
 
 # Output spatial data ----
 
+county_data <- county_data %>%
+  mutate(month = as.character(month))
+
 arc.check_product()
 
-arc.write(county_data_final, output_file_path_for_spatial_county_data, overwrite = T, validate = T)
-arc.write(metro_data_final, output_file_path_for_spatial_metro_data, overwrite = T, validate = T)
+arc.write(county_data, path = output_file_path_for_spatial_county_data, overwrite = T, validate = T)
