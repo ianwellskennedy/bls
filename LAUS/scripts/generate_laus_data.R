@@ -1,7 +1,7 @@
 # Packages ----
 
 # Set the packages to read in
-packages <- c("tidyverse", "tidycensus", "sf", "openxlsx", "arcgisbinding", "conflicted", "zoo", "blsAPI", "jsonlite")
+packages <- c("tidyverse", "tidycensus", "sf", "openxlsx", "arcgisbinding", "conflicted", "zoo", "blsAPI", "jsonlite", "janitor")
 
 # Install packages that are not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -24,7 +24,9 @@ conflicts_prefer(dplyr::filter, dplyr::lag, lubridate::year, base::`||`, base::i
 county_shp_file_path <- "C:/Users/ianwe/Downloads/shapefiles/2024/Counties/cb_2024_us_county_5m.shp"
 metro_shp_file_path <- "C:/Users/ianwe/Downloads/shapefiles/2024/CBSAs/cb_2024_us_cbsa_5m.shp"
 
+# Download the latest data here: https://www.bls.gov/lau/tables.htm#mcounty
 input_file_path_for_county_data <- "LAUS/inputs/laucntycur14/laucntycur14.xlsx"
+
 output_file_path_for_tabular_county_data <- "LAUS/outputs/county_unemployment_rates.xlsx"
 output_file_path_for_tabular_metro_data <- "LAUS/outputs/metro_unemployment_rates.xlsx"
 
@@ -57,9 +59,8 @@ county_data <- read.xlsx(input_file_path_for_county_data)
 names(county_data) <- county_data[1,]
 county_data <- county_data[-1,]
 
-county_data <- janitor::clean_names(county_data) %>%
-  rename(county_name = county_name_state_abbreviation, unemployment_rate = unemploy_ment_rate_percent,
-         month = period) 
+county_data <- clean_names(county_data) %>%
+  rename(county_name = county_name_state_abbreviation, unemployment_rate = unemploy_ment_rate_percent, month = period) 
 
 county_data <- county_data %>%
   mutate(county_fips_code = paste0(state_fips_code, county_fips_code),
@@ -78,19 +79,17 @@ county_data <- county_data %>%
 county_data <- county_data %>%
   select(county_name.y, county_name_long, county_fips_code, state, state_fips_code, month, everything()) %>%
   select(-c(county_name.x, laus_code)) %>%
-  rename(county_name = county_name.y)
+  rename(county_name = county_name.y) %>%
+  mutate(month = as.character(month))
 
 county_data_tabular <- county_data %>%
-  select(-geometry)
+  st_drop_geometry()
 
 # Output tabular data ----
 
 write.xlsx(county_data_tabular, output_file_path_for_tabular_metro_data)
 
 # Output spatial data ----
-
-county_data <- county_data %>%
-  mutate(month = as.character(month))
 
 arc.check_product()
 
